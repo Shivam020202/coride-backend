@@ -155,5 +155,24 @@ export const initSocket = (httpServer: HttpServer) => {
         }
       }
     });
+
+    // ── Live Ride Sharing ──────────────────────────────────────────────────────
+
+    // Sharer starts broadcasting — joins a private room keyed by their share token
+    socket.on("startSharing", (data: { token: string }) => {
+      socket.join(`share_${data.token}`);
+      console.log(`[Socket] Sharer joined room share_${data.token}`);
+    });
+
+    // Sharer emits their live location — server relays it to everyone tracking
+    socket.on("broadcastLocation", (data: { token: string; lat: number; lng: number }) => {
+      io.to(`share_${data.token}`).emit("liveLocation", { lat: data.lat, lng: data.lng });
+    });
+
+    // Receiver joins tracking room to receive live location updates
+    socket.on("trackRide", (data: { token: string }) => {
+      socket.join(`share_${data.token}`);
+      console.log(`[Socket] Tracker joined room share_${data.token}`);
+    });
   });
 };
