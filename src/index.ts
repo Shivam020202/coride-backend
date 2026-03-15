@@ -31,7 +31,7 @@ app.get("/keep-alive", (req: express.Request, res: express.Response) => {
 
 const PORT = process.env.PORT || 5000;
 const MONGO_URI =
-  process.env.MONGO_URI || "mongodb://127.0.0.1:27017/uber-clone";
+  process.env.MONGODB_URI || process.env.MONGO_URI || "mongodb://127.0.0.1:27017/uber-clone";
 
 mongoose
   .connect(MONGO_URI)
