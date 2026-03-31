@@ -71,7 +71,7 @@ router.get("/status", authMiddleware, async (req: AuthRequest, res: Response): P
     res.json(verification);
   } catch (err) {
     console.error((err as Error).message);
-    res.status(500).send("Server Error");
+    res.status(500).json({ msg: "Server Error" });
   }
 });
 
@@ -111,7 +111,7 @@ router.post(
       res.json({ msg: "Document uploaded", document: doc });
     } catch (err) {
       console.error((err as Error).message);
-      res.status(500).send("Server Error");
+      res.status(500).json({ msg: "Server Error" });
     }
   }
 );
@@ -141,7 +141,7 @@ router.post("/accept/:docName", authMiddleware, async (req: AuthRequest, res: Re
     res.json({ msg: "Accepted", document: doc });
   } catch (err) {
     console.error((err as Error).message);
-    res.status(500).send("Server Error");
+    res.status(500).json({ msg: "Server Error" });
   }
 });
 
@@ -175,7 +175,52 @@ router.post("/submit", authMiddleware, async (req: AuthRequest, res: Response): 
     res.json({ msg: "Verification submitted for review" });
   } catch (err) {
     console.error((err as Error).message);
-    res.status(500).send("Server Error");
+    res.status(500).json({ msg: "Server Error" });
+  }
+});
+
+// Quick verify for demo — auto-approves the driver without documents
+router.post("/quick-verify", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    let verification = await DriverVerification.findOne({ driverId: userId });
+
+    if (!verification) {
+      const user = await User.findById(userId);
+      verification = new DriverVerification({
+        driverId: userId,
+        driverName: user?.name || "",
+        driverEmail: user?.email || "",
+        status: "approved",
+        documents: DOCUMENT_CHECKLIST.map((doc) => ({
+          name: doc.name,
+          required: doc.required,
+          status: "approved",
+          submittedAt: new Date(),
+        })),
+        submittedAt: new Date(),
+        reviewedAt: new Date(),
+        reviewNote: "Auto-approved (demo mode)",
+      });
+      await verification.save();
+    } else {
+      verification.status = "approved";
+      verification.reviewedAt = new Date();
+      verification.reviewNote = "Auto-approved (demo mode)";
+      verification.documents.forEach((doc) => {
+        doc.status = "approved";
+        doc.submittedAt = new Date();
+      });
+      await verification.save();
+    }
+
+    // Mark user as verified
+    await User.findByIdAndUpdate(userId, { verified: true });
+
+    res.json({ msg: "Driver verified (demo mode)", verification });
+  } catch (err) {
+    console.error((err as Error).message);
+    res.status(500).json({ msg: "Server Error" });
   }
 });
 
