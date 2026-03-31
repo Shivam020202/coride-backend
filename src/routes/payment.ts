@@ -5,13 +5,18 @@ import authMiddleware, { AuthRequest } from "../middleware/auth";
 
 const router = Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+const stripeKey = process.env.STRIPE_SECRET_KEY;
+const stripe = stripeKey ? new Stripe(stripeKey) : null;
 
 // Create a Payment Intent for a ride
 router.post(
   "/create-payment-intent",
   authMiddleware,
   async (req: AuthRequest, res: Response): Promise<void> => {
+    if (!stripe) {
+      res.status(503).json({ msg: "Stripe is not configured" });
+      return;
+    }
     try {
       const { amount, rideId } = req.body;
 
@@ -20,7 +25,6 @@ router.post(
         return;
       }
 
-      // Amount should be in cents for Stripe
       const amountInCents = Math.round(amount * 100);
 
       const paymentIntent = await stripe.paymentIntents.create({
@@ -51,14 +55,16 @@ router.post(
   "/confirm-payment",
   authMiddleware,
   async (req: AuthRequest, res: Response): Promise<void> => {
+    if (!stripe) {
+      res.status(503).json({ msg: "Stripe is not configured" });
+      return;
+    }
     try {
       const { paymentIntentId, rideId } = req.body;
 
-      // Verify the payment intent status with Stripe
       const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
       if (paymentIntent.status === "succeeded") {
-        // Update ride payment status if we have a rideId
         if (rideId) {
           await Ride.findOneAndUpdate(
             { _id: rideId },
@@ -83,10 +89,10 @@ router.post(
   }
 );
 
-// Get Stripe publishable key (so frontend doesn't hardcode it)
+// Get Stripe publishable key
 router.get("/config", (_req, res: Response): void => {
   res.json({
-    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || "",
   });
 });
 
