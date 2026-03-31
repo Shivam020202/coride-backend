@@ -6,6 +6,7 @@ export interface IUser extends Document {
   password?: string;
   role: "consumer" | "driver";
   gender: "male" | "female" | "other";
+  verified: boolean;
   createdAt: Date;
 }
 
@@ -15,6 +16,7 @@ const UserSchema: Schema = new Schema({
   password: { type: String, required: true },
   role: { type: String, enum: ["consumer", "driver"], default: "consumer" },
   gender: { type: String, enum: ["male", "female", "other"], default: "male" },
+  verified: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
 });
 

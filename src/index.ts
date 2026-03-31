@@ -1,12 +1,13 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import http from "http";
+import path from "path";
 import { initSocket } from "./socket";
 import mongoose from "mongoose";
 import cors from "cors";
-import dotenv from "dotenv";
 import authRoutes from "./routes/auth";
-
-dotenv.config();
 
 const app = express();
 app.use(cors());
@@ -15,10 +16,19 @@ app.use(express.json());
 // Routes
 import ridesRoutes from "./routes/rides";
 import driverRoutes from "./routes/driver";
+import adminRoutes from "./routes/admin";
+import verificationRoutes from "./routes/verification";
+import paymentRoutes from "./routes/payment";
+
+// Serve uploaded files
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/rides", ridesRoutes);
 app.use("/api/driver", driverRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/verification", verificationRoutes);
+app.use("/api/payment", paymentRoutes);
 
 app.get("/", (req: express.Request, res: express.Response) => {
   res.send("Uber Clone API is running");

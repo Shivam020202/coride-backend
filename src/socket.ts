@@ -1,5 +1,7 @@
 import { Server as HttpServer } from "http";
 import { Server, Socket } from "socket.io";
+import Ride from "./models/Ride";
+import User from "./models/User";
 
 export let io: Server;
 
@@ -24,18 +26,34 @@ export const initSocket = (httpServer: HttpServer) => {
     console.log("Client connected:", socket.id);
 
     // Register a specific user (rider or driver) using their token/userId
-    socket.on("register", (data: { userId: string; role: string; gender?: string }) => {
+    socket.on("register", async (data: { userId: string; role: string; gender?: string }) => {
       // Join a room based on userId for private messaging
       socket.join(data.userId);
-      // Join a role-based room
-      socket.join(data.role);
-      // If this is a driver, track their gender for womenOnly filtering
+
       if (data.role === "driver") {
+        // Check if driver is verified before adding to driver room
+        try {
+          const driver = await User.findById(data.userId);
+          if (!driver || !driver.verified) {
+            console.log(`Driver ${data.userId} is not verified — not joining driver room`);
+            // Still join userId room for private messages, but NOT the "driver" room
+            return;
+          }
+        } catch (err) {
+          console.error("Error checking driver verification:", err);
+          return;
+        }
+
+        // Verified driver — join driver room
+        socket.join(data.role);
         driverRegistry.set(data.userId, {
           socketId: socket.id,
           gender: data.gender || "male",
         });
         console.log(`Driver ${data.userId} registered with gender: ${data.gender || "male"}`);
+      } else {
+        // Riders join role room directly
+        socket.join(data.role);
       }
       console.log(`User ${data.userId} registered as ${data.role}`);
     });
@@ -136,7 +154,23 @@ export const initSocket = (httpServer: HttpServer) => {
           io.to(ride.userId).emit("rideStatusUpdate", data.status);
 
           if (data.status === "completed") {
-            // Clean up
+            // Persist to database
+            new Ride({
+              riderId: ride.userId,
+              riderName: ride.user || "Rider",
+              driverId: ride.driverId || "",
+              driverName: ride.driverName || "",
+              pickup: ride.pickup,
+              destination: ride.destination,
+              distance: ride.distance || "",
+              duration: ride.time || "",
+              price: ride.price || 0,
+              status: "completed",
+              womenOnly: ride.womenOnly || false,
+              completedAt: new Date(),
+            }).save().catch((err: any) => console.error("Error saving ride:", err));
+
+            // Clean up from memory
             const index = activeRides.indexOf(ride);
             if (index > -1) activeRides.splice(index, 1);
           }
