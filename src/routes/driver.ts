@@ -1,5 +1,6 @@
 import { Router, Response } from "express";
 import authMiddleware, { AuthRequest } from "../middleware/auth";
+import Ride from "../models/Ride";
 
 const router = Router();
 
@@ -37,39 +38,36 @@ router.get("/requests", authMiddleware, (req: AuthRequest, res: Response) => {
   res.json(requests);
 });
 
-// Generate dynamic mock history for driver
-router.get("/history", authMiddleware, (req: AuthRequest, res: Response) => {
-  const history = [
-    {
-      id: "1",
-      user: "Dwight Schrute",
-      destination: "Beet Farm",
-      date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString(),
-      type: "CoRide X",
-      earnings: 15.25,
-      rating: 5,
-    },
-    {
-      id: "2",
-      user: "Angela Martin",
-      destination: "Cat Hospital",
-      date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
-      type: "Premium",
-      earnings: 30.0,
-      rating: 4,
-    },
-    {
-      id: "3",
-      user: "Stanley Hudson",
-      destination: "Pretzel Stand",
-      date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
-      type: "CoRide X",
-      earnings: 8.5,
-      rating: 5,
-    },
-  ];
+// Fetch completed rides for the logged-in driver from the database
+router.get("/history", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const driverId = req.user?.id;
+    const rides = await Ride.find({ driverId, status: "completed" })
+      .sort({ completedAt: -1 })
+      .limit(50)
+      .lean();
 
-  res.json({ history, totalEarnings: 53.75 });
+    const history = rides.map((ride) => ({
+      id: ride._id,
+      user: ride.riderName || "Rider",
+      destination: ride.destination,
+      pickup: ride.pickup,
+      date: (ride.completedAt || ride.createdAt || new Date()).toISOString(),
+      type: ride.price >= 40 ? "Premium" : "CoRide X",
+      earnings: ride.price,
+      rating: ride.riderRating || 0,
+      distance: ride.distance || "",
+      duration: ride.duration || "",
+      paymentStatus: ride.paymentStatus,
+    }));
+
+    const totalEarnings = history.reduce((sum, h) => sum + h.earnings, 0);
+
+    res.json({ history, totalEarnings });
+  } catch (err) {
+    console.error("Error fetching driver history:", err);
+    res.status(500).json({ msg: "Failed to fetch driver history" });
+  }
 });
 
 // Accept a ride API mock

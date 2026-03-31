@@ -1,54 +1,37 @@
 import { Router, Response } from "express";
 import authMiddleware, { AuthRequest } from "../middleware/auth";
+import Ride from "../models/Ride";
 
 const router = Router();
 
-// Generate dynamic mock rides for the logged-in user to make the app feel "alive".
-router.get("/history", authMiddleware, (req: AuthRequest, res: Response) => {
-  const rides = [
-    {
-      id: "1",
-      destination: "Central Park, New York",
-      date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString(), // 1 day ago
-      type: "CoRide X",
-      price: 18.25,
-      rating: 5,
-    },
-    {
-      id: "2",
-      destination: "123 Main Street, Apt 4B",
-      date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(), // 3 days ago
-      type: "Premium",
-      price: 45.0,
-      rating: 5,
-    },
-    {
-      id: "3",
-      destination: "JFK International Airport",
-      date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(), // 7 days ago
-      type: "CoRide X",
-      price: 62.5,
-      rating: 4,
-    },
-    {
-      id: "4",
-      destination: "Times Square",
-      date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(), // 10 days ago
-      type: "CoRide X",
-      price: 12.8,
-      rating: 5,
-    },
-    {
-      id: "5",
-      destination: "Empire State Building",
-      date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString(), // 14 days ago
-      type: "Premium",
-      price: 28.4,
-      rating: 5,
-    },
-  ];
+// Fetch completed rides for the logged-in rider from the database
+router.get("/history", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const rides = await Ride.find({ riderId: userId, status: "completed" })
+      .sort({ completedAt: -1 })
+      .limit(50)
+      .lean();
 
-  res.json(rides);
+    const formatted = rides.map((ride) => ({
+      id: ride._id,
+      destination: ride.destination,
+      pickup: ride.pickup,
+      date: (ride.completedAt || ride.createdAt || new Date()).toISOString(),
+      type: ride.price >= 40 ? "Premium" : "CoRide X",
+      price: ride.price,
+      rating: ride.driverRating || 0,
+      driverName: ride.driverName || "Driver",
+      distance: ride.distance || "",
+      duration: ride.duration || "",
+      paymentStatus: ride.paymentStatus,
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error("Error fetching ride history:", err);
+    res.status(500).json({ msg: "Failed to fetch ride history" });
+  }
 });
 
 export default router;
