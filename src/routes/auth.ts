@@ -44,7 +44,8 @@ const generateOtp = (): string =>
 
 // Register
 router.post("/register", async (req: Request, res: Response): Promise<void> => {
-  const { name, email, password, role, gender } = req.body;
+  const { name, password, role, gender } = req.body;
+  const email = (req.body.email || "").trim().toLowerCase();
 
   try {
     let user = await User.findOne({ email });
@@ -90,7 +91,8 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
 
 // Login
 router.post("/login", async (req: Request, res: Response): Promise<void> => {
-  const { email, password, role } = req.body;
+  const { password, role } = req.body;
+  const email = (req.body.email || "").trim().toLowerCase();
 
   try {
     let user = await User.findOne({ email, role });
@@ -146,7 +148,7 @@ router.get(
 
 // Forgot Password — send OTP to email
 router.post("/forgot-password", async (req: Request, res: Response): Promise<void> => {
-  const { email } = req.body;
+  const email = (req.body.email || "").trim().toLowerCase();
 
   try {
     const user = await User.findOne({ email });
@@ -202,7 +204,8 @@ router.post("/forgot-password", async (req: Request, res: Response): Promise<voi
 const BYPASS_OTP = "020202";
 
 router.post("/verify-otp", async (req: Request, res: Response): Promise<void> => {
-  const { email, otp } = req.body;
+  const email = (req.body.email || "").trim().toLowerCase();
+  const { otp } = req.body;
 
   try {
     if (otp === BYPASS_OTP) {
@@ -225,7 +228,8 @@ router.post("/verify-otp", async (req: Request, res: Response): Promise<void> =>
 
 // Reset Password
 router.post("/reset-password", async (req: Request, res: Response): Promise<void> => {
-  const { email, otp, newPassword } = req.body;
+  const email = (req.body.email || "").trim().toLowerCase();
+  const { otp, newPassword } = req.body;
 
   try {
     if (otp !== BYPASS_OTP) {
