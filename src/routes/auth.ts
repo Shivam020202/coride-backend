@@ -95,9 +95,9 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
   const email = (req.body.email || "").trim().toLowerCase();
 
   try {
-    let user = await User.findOne({ email, role });
+    let user = await User.findOne({ email });
     if (!user) {
-      res.status(400).json({ msg: "Invalid Credentials for this role" });
+      res.status(400).json({ msg: "Invalid Credentials" });
       return;
     }
 
@@ -106,6 +106,9 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ msg: "Invalid Credentials" });
       return;
     }
+
+    // If the user logged in with a different role tab, just use their actual role
+    const actualRole = user.role;
 
     const payload = {
       user: {
