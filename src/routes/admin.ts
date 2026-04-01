@@ -1,10 +1,48 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import User from "../models/User";
 import Ride from "../models/Ride";
 import DriverVerification from "../models/DriverVerification";
 import { activeRides, activeRequests } from "../socket";
 
 const router = Router();
+
+// Admin credentials
+const ADMIN_USERNAME = "corideAdmin";
+const ADMIN_PASSWORD = "coride@54321";
+
+// Admin login endpoint (no auth required)
+router.post("/login", (req: Request, res: Response): void => {
+  const { username, password } = req.body;
+  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    // Create a simple base64 token for session validation
+    const adminToken = Buffer.from(`${ADMIN_USERNAME}:${Date.now()}`).toString("base64");
+    res.json({ token: adminToken });
+  } else {
+    res.status(401).json({ msg: "Invalid credentials" });
+  }
+});
+
+// Middleware to protect all subsequent admin routes
+const adminAuth = (req: Request, res: Response, next: NextFunction): void => {
+  const token = req.header("x-admin-token");
+  if (!token) {
+    res.status(401).json({ msg: "No admin token, authorization denied" });
+    return;
+  }
+  try {
+    const decoded = Buffer.from(token, "base64").toString("utf-8");
+    if (decoded.startsWith(ADMIN_USERNAME + ":")) {
+      next();
+    } else {
+      res.status(401).json({ msg: "Invalid admin token" });
+    }
+  } catch {
+    res.status(401).json({ msg: "Invalid admin token" });
+  }
+};
+
+// Apply admin auth to all routes below
+router.use(adminAuth);
 
 // Dashboard stats
 router.get("/stats", async (_req: Request, res: Response): Promise<void> => {

@@ -30,12 +30,10 @@ router.post(
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amountInCents,
         currency: "usd",
+        payment_method_types: ["card"],
         metadata: {
           rideId: rideId || "",
           userId: req.user?.id || "",
-        },
-        automatic_payment_methods: {
-          enabled: true,
         },
       });
 
@@ -65,13 +63,24 @@ router.post(
       const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
       if (paymentIntent.status === "succeeded") {
+        const userId = req.user?.id;
+        let updated = false;
+
+        // Try to find by rideId first
         if (rideId) {
-          await Ride.findOneAndUpdate(
+          const result = await Ride.findOneAndUpdate(
             { _id: rideId },
-            {
-              paymentStatus: "paid",
-              stripePaymentIntentId: paymentIntentId,
-            }
+            { paymentStatus: "paid", stripePaymentIntentId: paymentIntentId }
+          );
+          if (result) updated = true;
+        }
+
+        // Fallback: find the most recent completed but unpaid ride for this user
+        if (!updated && userId) {
+          await Ride.findOneAndUpdate(
+            { riderId: userId, status: "completed", paymentStatus: "pending" },
+            { paymentStatus: "paid", stripePaymentIntentId: paymentIntentId },
+            { sort: { completedAt: -1 } }
           );
         }
 

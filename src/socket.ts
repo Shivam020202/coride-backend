@@ -111,7 +111,7 @@ export const initSocket = (httpServer: HttpServer) => {
           ...req,
           ...data,
           status: "picking_up",
-          driverLocation: { lat: 40.7128, lng: -74.006 },
+          driverLocation: data.driverLocation || null,
         };
         activeRides.push(activeRide);
 
@@ -147,15 +147,15 @@ export const initSocket = (httpServer: HttpServer) => {
     // Driver updates ride status
     socket.on(
       "updateRideStatus",
-      (data: { rideId: string; status: string }) => {
+      async (data: { rideId: string; status: string }) => {
         const ride = activeRides.find((r) => r.id === data.rideId);
         if (ride) {
           ride.status = data.status;
           io.to(ride.userId).emit("rideStatusUpdate", data.status);
 
           if (data.status === "completed") {
-            // Persist to database
-            new Ride({
+            // Persist to database and send the DB _id back to the rider for payment
+            const savedRide = await new Ride({
               riderId: ride.userId,
               riderName: ride.user || "Rider",
               driverId: ride.driverId || "",
@@ -168,7 +168,15 @@ export const initSocket = (httpServer: HttpServer) => {
               status: "completed",
               womenOnly: ride.womenOnly || false,
               completedAt: new Date(),
-            }).save().catch((err: any) => console.error("Error saving ride:", err));
+            }).save().catch((err: any) => {
+              console.error("Error saving ride:", err);
+              return null;
+            });
+
+            // Send the saved ride's MongoDB _id to the rider so payment can reference it
+            if (savedRide && savedRide._id) {
+              io.to(ride.userId).emit("rideDbId", { rideId: savedRide._id.toString() });
+            }
 
             // Clean up from memory
             const index = activeRides.indexOf(ride);
