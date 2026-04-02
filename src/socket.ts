@@ -151,10 +151,9 @@ export const initSocket = (httpServer: HttpServer) => {
         const ride = activeRides.find((r) => r.id === data.rideId);
         if (ride) {
           ride.status = data.status;
-          io.to(ride.userId).emit("rideStatusUpdate", data.status);
 
           if (data.status === "completed") {
-            // Persist to database and send the DB _id back to the rider for payment
+            // Save to DB FIRST so rider gets the rideDbId before the completed status triggers payment
             const savedRide = await new Ride({
               riderId: ride.userId,
               riderName: ride.user || "Rider",
@@ -173,14 +172,19 @@ export const initSocket = (httpServer: HttpServer) => {
               return null;
             });
 
-            // Send the saved ride's MongoDB _id to the rider so payment can reference it
+            // Send the DB _id to the rider BEFORE the completed status
             if (savedRide && savedRide._id) {
               io.to(ride.userId).emit("rideDbId", { rideId: savedRide._id.toString() });
             }
 
+            // Now emit the completed status which triggers the payment flow on the rider
+            io.to(ride.userId).emit("rideStatusUpdate", data.status);
+
             // Clean up from memory
             const index = activeRides.indexOf(ride);
             if (index > -1) activeRides.splice(index, 1);
+          } else {
+            io.to(ride.userId).emit("rideStatusUpdate", data.status);
           }
         }
       },
