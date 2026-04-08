@@ -10,9 +10,9 @@ export let io: Server;
 export const activeRequests: any[] = [];
 export const activeRides: any[] = [];
 
-// Track drivers and their gender for womenOnly filtering
-// Map of userId -> { socketId, gender }
-const driverRegistry = new Map<string, { socketId: string; gender: string }>();
+// Track drivers and their gender for womenOnly filtering and ride types
+// Map of userId -> { socketId, gender, acceptedRideTypes }
+const driverRegistry = new Map<string, { socketId: string; gender: string; acceptedRideTypes: string[] }>();
 
 export const initSocket = (httpServer: HttpServer) => {
   io = new Server(httpServer, {
@@ -49,6 +49,7 @@ export const initSocket = (httpServer: HttpServer) => {
         driverRegistry.set(data.userId, {
           socketId: socket.id,
           gender: data.gender || "male",
+          acceptedRideTypes: (data as any).acceptedRideTypes || ["coride_x", "premium"]
         });
         console.log(`Driver ${data.userId} registered with gender: ${data.gender || "male"}`);
       } else {
@@ -72,28 +73,25 @@ export const initSocket = (httpServer: HttpServer) => {
         time: rideData.duration || rideData.time || "20 min",
         status: "pending",
         womenOnly: rideData.womenOnly || false,
+        rideType: rideData.rideType || "coride_x",
         createdAt: new Date(),
       };
 
       activeRequests.push(newRequest);
 
-      if (newRequest.womenOnly) {
-        // Only notify female drivers
-        const femaleDriverIds = [...driverRegistry.entries()]
-          .filter(([, info]) => info.gender === "female")
-          .map(([userId]) => userId);
+      // Find eligible drivers based on womenOnly flag and acceptedRideTypes
+      const eligibleDriverIds = [...driverRegistry.entries()]
+        .filter(([, info]) => {
+          if (newRequest.womenOnly && info.gender !== "female") return false;
+          if (!info.acceptedRideTypes.includes(newRequest.rideType)) return false;
+          return true;
+        })
+        .map(([userId]) => userId);
 
-        console.log(`[Socket] womenOnly request — notifying ${femaleDriverIds.length} female driver(s)`);
-        femaleDriverIds.forEach((userId) => {
-          io.to(userId).emit("newRideRequest", newRequest);
-        });
-      } else {
-        // Broadcast to all online drivers
-        const driverRoom = io.sockets.adapter.rooms.get("driver");
-        console.log("[Socket] Driver room size:", driverRoom?.size || 0);
-        io.to("driver").emit("newRideRequest", newRequest);
-        console.log("[Socket] Emitted newRideRequest to driver room");
-      }
+      console.log(`[Socket] Notifying ${eligibleDriverIds.length} eligible driver(s) for ${newRequest.rideType}`);
+      eligibleDriverIds.forEach((userId) => {
+        io.to(userId).emit("newRideRequest", newRequest);
+      });
 
       // Let rider know it was sent successfully
       socket.emit("rideRequested", newRequest);
@@ -164,6 +162,7 @@ export const initSocket = (httpServer: HttpServer) => {
               distance: ride.distance || "",
               duration: ride.time || "",
               price: ride.price || 0,
+              rideType: ride.rideType || "coride_x",
               status: "completed",
               womenOnly: ride.womenOnly || false,
               completedAt: new Date(),

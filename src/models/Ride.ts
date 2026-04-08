@@ -16,6 +16,7 @@ export interface IRide extends Document {
   womenOnly: boolean;
   paymentStatus: "pending" | "paid" | "failed";
   stripePaymentIntentId: string;
+  rideType: "coride_x" | "premium";
   createdAt: Date;
   completedAt: Date;
 }
@@ -40,6 +41,7 @@ const RideSchema: Schema = new Schema({
   womenOnly: { type: Boolean, default: false },
   paymentStatus: { type: String, enum: ["pending", "paid", "failed"], default: "pending" },
   stripePaymentIntentId: { type: String, default: "" },
+  rideType: { type: String, enum: ["coride_x", "premium"], default: "coride_x" },
   createdAt: { type: Date, default: Date.now },
   completedAt: { type: Date },
 });

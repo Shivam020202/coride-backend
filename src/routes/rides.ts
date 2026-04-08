@@ -18,7 +18,7 @@ router.get("/history", authMiddleware, async (req: AuthRequest, res: Response) =
       destination: ride.destination,
       pickup: ride.pickup,
       date: (ride.completedAt || ride.createdAt || new Date()).toISOString(),
-      type: ride.price >= 40 ? "Premium" : "CoRide X",
+      type: ride.rideType === "premium" ? "Premium" : "CoRide X",
       price: ride.price,
       rating: ride.driverRating || 0,
       driverName: ride.driverName || "Driver",
